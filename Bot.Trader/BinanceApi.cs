@@ -117,13 +117,17 @@ public static class BinanceApi
         return (bids, asks);
     }
     
-    public static async Task<string> PlaceMarketBuyOrder(string apiKey, string secretKey, decimal usdtAmount)
+    public static async Task<string> PlaceMarketBuyOrder(string apiKey, string secretKey, decimal btcAmount)
     {
         using var httpClient = new HttpClient();
 
-        // 1. Buscar preço atual do BTC para estimar quantidade
-        var price = await GetBitcoinPriceAsync();
-        var quantity = Math.Round(usdtAmount / price, 6); // Binance aceita até 6 casas para BTC
+        var (minQty, stepSize) = await GetLotSizeFilterAsync();
+        var quantity = Math.Floor(btcAmount / stepSize) * stepSize;
+        if (quantity < minQty)
+        {
+            Console.WriteLine($"⚠️ Quantidade {quantity} abaixo do mínimo permitido: {minQty}. Ordem de compra ignorada.");
+            return $"Erro: Quantidade {quantity} abaixo do mínimo permitido.";
+        }
 
         var timestamp = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
         var queryString = $"symbol=BTCUSDT&side=BUY&type=MARKET&quantity={quantity}&timestamp={timestamp}";
@@ -141,7 +145,14 @@ public static class BinanceApi
     {
         using var httpClient = new HttpClient();
 
-        var quantity = Math.Round(btcAmount, 6); // Arredondar conforme precisões da Binance
+        var (minQty, stepSize) = await GetLotSizeFilterAsync();
+        var quantity = Math.Floor(btcAmount / stepSize) * stepSize;
+        if (quantity < minQty)
+        {
+            Console.WriteLine($"⚠️ Quantidade {quantity} abaixo do mínimo permitido: {minQty}. Ordem de venda ignorada.");
+            return $"Erro: Quantidade {quantity} abaixo do mínimo permitido.";
+        }
+
         var timestamp = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
         var queryString = $"symbol=BTCUSDT&side=SELL&type=MARKET&quantity={quantity}&timestamp={timestamp}";
 
@@ -152,6 +163,30 @@ public static class BinanceApi
 
         var response = await httpClient.PostAsync(requestUri, null);
         return await response.Content.ReadAsStringAsync();
+    }
+
+    public static async Task<(decimal minQty, decimal stepSize)> GetLotSizeFilterAsync()
+    {
+        using var httpClient = new HttpClient();
+        var response = await httpClient.GetStringAsync("https://api.binance.com/api/v3/exchangeInfo?symbol=BTCUSDT");
+
+        using var doc = JsonDocument.Parse(response);
+        var filters = doc.RootElement
+            .GetProperty("symbols")[0]
+            .GetProperty("filters")
+            .EnumerateArray();
+
+        foreach (var filter in filters)
+        {
+            if (filter.GetProperty("filterType").GetString() == "LOT_SIZE")
+            {
+                var minQty = decimal.Parse(filter.GetProperty("minQty").GetString()!, System.Globalization.CultureInfo.InvariantCulture);
+                var stepSize = decimal.Parse(filter.GetProperty("stepSize").GetString()!, System.Globalization.CultureInfo.InvariantCulture);
+                return (minQty, stepSize);
+            }
+        }
+
+        throw new Exception("LOT_SIZE filter not found for BTCUSDT.");
     }
     
     public static string CreateHmacSignature(string message, string key)

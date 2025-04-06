@@ -14,7 +14,7 @@ using System.Reflection;
 [assembly: System.Reflection.AssemblyCompanyAttribute("Bot.Trader")]
 [assembly: System.Reflection.AssemblyConfigurationAttribute("Debug")]
 [assembly: System.Reflection.AssemblyFileVersionAttribute("1.0.0.0")]
-[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+45ba9339ac80f7feecc01a8cf3ef59ae22eae1e4")]
+[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+4fcba7434010e5cfa0c133ebe38a6fb262d24ec6")]
 [assembly: System.Reflection.AssemblyProductAttribute("Bot.Trader")]
 [assembly: System.Reflection.AssemblyTitleAttribute("Bot.Trader")]
 [assembly: System.Reflection.AssemblyVersionAttribute("1.0.0.0")]

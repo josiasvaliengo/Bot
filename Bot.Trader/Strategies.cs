@@ -130,7 +130,10 @@ namespace Bot.Trader
                     Console.WriteLine("🚫 Compra ignorada (já executada anteriormente).");
                     return;
                 }
-                var result = await BinanceApi.PlaceMarketBuyOrder(apiKey, secretKey, usdtBalance);
+                var price = await BinanceApi.GetBitcoinPriceAsync();
+                var stepSize = 0.000001m;
+                var quantidade = Math.Floor((usdtBalance / price) / stepSize) * stepSize;
+                var result = await BinanceApi.PlaceMarketBuyOrder(apiKey, secretKey, quantidade);
                 Console.WriteLine("✅ COMPRA EXECUTADA");
                 await TelegramApi.SendMessageAsync($"✅ COMPRA EXECUTADA: {result}");
                 ultimaAcao = "compra";
