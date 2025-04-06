@@ -23,3 +23,4 @@
 /Users/josiasvaliengo/Library/Mobile Documents/com~apple~CloudDocs/Bot-Net/Bot/Bot.Trader/bin/Debug/net9.0/Microsoft.Extensions.Primitives.dll
 /Users/josiasvaliengo/Library/Mobile Documents/com~apple~CloudDocs/Bot-Net/Bot/Bot.Trader/obj/Debug/net9.0/Bot.Trader.csproj.AssemblyReference.cache
 /Users/josiasvaliengo/Library/Mobile Documents/com~apple~CloudDocs/Bot-Net/Bot/Bot.Trader/obj/Debug/net9.0/Bot.Trader.csproj.Up2Date
+/Users/josiasvaliengo/Library/Mobile Documents/com~apple~CloudDocs/Bot-Net/Bot/Bot.Trader/obj/Debug/net9.0/Bot.Trader.sourcelink.json

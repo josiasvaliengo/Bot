@@ -88,7 +88,72 @@ public static class BinanceApi
 
         return 0m;
     }
+    
+    public static async Task<(List<(decimal price, decimal quantity)> bids, List<(decimal price, decimal quantity)> asks)> GetOrderBookAsync()
+    {
+        using var httpClient = new HttpClient();
+        var response = await httpClient.GetStringAsync("https://api.binance.com/api/v3/depth?symbol=BTCUSDT&limit=5");
+        
+        using var doc = JsonDocument.Parse(response);
+        var root = doc.RootElement;
+        
+        var bids = new List<(decimal price, decimal quantity)>();
+        var asks = new List<(decimal price, decimal quantity)>();
+        
+        foreach (var bid in root.GetProperty("bids").EnumerateArray())
+        {
+            var price = decimal.Parse(bid[0].GetString()!, System.Globalization.CultureInfo.InvariantCulture);
+            var quantity = decimal.Parse(bid[1].GetString()!, System.Globalization.CultureInfo.InvariantCulture);
+            bids.Add((price, quantity));
+        }
+        
+        foreach (var ask in root.GetProperty("asks").EnumerateArray())
+        {
+            var price = decimal.Parse(ask[0].GetString()!, System.Globalization.CultureInfo.InvariantCulture);
+            var quantity = decimal.Parse(ask[1].GetString()!, System.Globalization.CultureInfo.InvariantCulture);
+            asks.Add((price, quantity));
+        }
+        
+        return (bids, asks);
+    }
+    
+    public static async Task<string> PlaceMarketBuyOrder(string apiKey, string secretKey, decimal usdtAmount)
+    {
+        using var httpClient = new HttpClient();
 
+        // 1. Buscar preço atual do BTC para estimar quantidade
+        var price = await GetBitcoinPriceAsync();
+        var quantity = Math.Round(usdtAmount / price, 6); // Binance aceita até 6 casas para BTC
+
+        var timestamp = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+        var queryString = $"symbol=BTCUSDT&side=BUY&type=MARKET&quantity={quantity}&timestamp={timestamp}";
+
+        var signature = CreateHmacSignature(queryString, secretKey);
+        var requestUri = $"https://api.binance.com/api/v3/order?{queryString}&signature={signature}";
+
+        httpClient.DefaultRequestHeaders.Add("X-MBX-APIKEY", apiKey);
+
+        var response = await httpClient.PostAsync(requestUri, null);
+        return await response.Content.ReadAsStringAsync();
+    }
+
+    public static async Task<string> PlaceMarketSellOrder(string apiKey, string secretKey, decimal btcAmount)
+    {
+        using var httpClient = new HttpClient();
+
+        var quantity = Math.Round(btcAmount, 6); // Arredondar conforme precisões da Binance
+        var timestamp = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+        var queryString = $"symbol=BTCUSDT&side=SELL&type=MARKET&quantity={quantity}&timestamp={timestamp}";
+
+        var signature = CreateHmacSignature(queryString, secretKey);
+        var requestUri = $"https://api.binance.com/api/v3/order?{queryString}&signature={signature}";
+
+        httpClient.DefaultRequestHeaders.Add("X-MBX-APIKEY", apiKey);
+
+        var response = await httpClient.PostAsync(requestUri, null);
+        return await response.Content.ReadAsStringAsync();
+    }
+    
     public static string CreateHmacSignature(string message, string key)
     {
         var keyBytes = System.Text.Encoding.UTF8.GetBytes(key);
