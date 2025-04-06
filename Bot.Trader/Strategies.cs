@@ -44,7 +44,7 @@ namespace Bot.Trader
             else
             {
                 Console.WriteLine("Mercado equilibrado.");
-                await TelegramApi.SendMessageAsync("⚖️ Mercado equilibrado.")
+                await TelegramApi.SendMessageAsync("⚖️ Mercado equilibrado.");
             }
         }
 
