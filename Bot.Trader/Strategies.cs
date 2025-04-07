@@ -16,6 +16,28 @@ namespace Bot.Trader
         private static DateTime? ultimaAtualizacaoCotacao = null;
         private static readonly TimeSpan intervaloCache = TimeSpan.FromMinutes(5);
 
+        private static void AjustarParametrosPorContexto(decimal candleRange)
+        {
+            if (candleRange > 100) // Alta volatilidade
+            {
+                lucroAlvoPercentual = 2.0m;
+                stopLossPercentual = 1.5m;
+                trailingStopPercentual = 1.0m;
+            }
+            else if (candleRange > 50) // Volatilidade média
+            {
+                lucroAlvoPercentual = 1.5m;
+                stopLossPercentual = 1.0m;
+                trailingStopPercentual = 0.8m;
+            }
+            else // Baixa volatilidade
+            {
+                lucroAlvoPercentual = 1.0m;
+                stopLossPercentual = 0.7m;
+                trailingStopPercentual = 0.5m;
+            }
+        }
+
         public static async Task<decimal> GetCotacaoDolarAsync()
         {
             if (cotacaoDolarCache.HasValue && ultimaAtualizacaoCotacao.HasValue &&
@@ -137,37 +159,87 @@ namespace Bot.Trader
             if (ultimaAcao == "compra" && precoEntrada.HasValue)
             {
                 var precoAtual = await BinanceApi.GetBitcoinPriceAsync();
+                var ganhoPercentual = ((precoAtual - precoEntrada.Value) / precoEntrada.Value) * 100;
 
-                // STOP LOSS
+                // Take Profit
+                if (ganhoPercentual >= lucroAlvoPercentual && btcBalance > 0.0001m)
+                {
+                    await BinanceApi.PlaceMarketSellOrder(apiKey, secretKey, btcBalance);
+                    var cotacaoDolar = await GetCotacaoDolarAsync();
+                    var valorVendaReais = btcBalance * precoAtual * cotacaoDolar;
+                    Console.WriteLine($"💰 LUCRO ALVO ATINGIDO - Venda realizada com {ganhoPercentual:F2}% de lucro.");
+                    Console.WriteLine($"💸 Valor da venda em reais: R$ {valorVendaReais:F2}");
+                    await TelegramApi.SendMessageAsync($"💰 LUCRO ALVO ATINGIDO - BTC vendido com {ganhoPercentual:F2}% de lucro.\n💸 Aproximadamente R$ {valorVendaReais:F2}");
+
+                    if (valorCompraReais.HasValue)
+                    {
+                        var resultado = valorVendaReais - valorCompraReais.Value;
+                        Console.WriteLine($"📊 Resultado da operação: R$ {resultado:F2}");
+                        await TelegramApi.SendMessageAsync($"📊 Resultado da operação: R$ {resultado:F2}");
+                        valorCompraReais = null;
+                    }
+
+                    ultimaAcao = "venda";
+                    precoEntrada = null;
+                    maiorPrecoDesdeEntrada = null;
+                    return;
+                }
+
+                // Atualiza o maior preço para trailing stop
+                if (maiorPrecoDesdeEntrada == null || precoAtual > maiorPrecoDesdeEntrada.Value)
+                    maiorPrecoDesdeEntrada = precoAtual;
+
+                // Verifica se é necessário ativar o trailing stop e stop loss
                 var perdaPercentual = ((precoAtual - precoEntrada.Value) / precoEntrada.Value) * 100;
+                var quedaDesdeTopo = ((precoAtual - maiorPrecoDesdeEntrada.Value) / maiorPrecoDesdeEntrada.Value) * 100;
 
                 if (perdaPercentual <= -stopLossPercentual && btcBalance > 0.0001m)
                 {
                     await BinanceApi.PlaceMarketSellOrder(apiKey, secretKey, btcBalance);
+                    var cotacaoDolar = await GetCotacaoDolarAsync();
+                    var valorVendaReais = btcBalance * precoAtual * cotacaoDolar;
                     Console.WriteLine($"🛑 STOP LOSS - Venda realizada com {perdaPercentual:F2}% de prejuízo.");
-                    await TelegramApi.SendMessageAsync($"🛑 STOP LOSS - BTC vendido com {perdaPercentual:F2}% de prejuízo.");
+                    Console.WriteLine($"💸 Valor da venda em reais: R$ {valorVendaReais:F2}");
+                    await TelegramApi.SendMessageAsync($"🛑 STOP LOSS - BTC vendido com {perdaPercentual:F2}% de prejuízo.\n💸 Aproximadamente R$ {valorVendaReais:F2}");
+
+                    if (valorCompraReais.HasValue)
+                    {
+                        var resultado = valorVendaReais - valorCompraReais.Value;
+                        Console.WriteLine($"📊 Resultado da operação: R$ {resultado:F2}");
+                        await TelegramApi.SendMessageAsync($"📊 Resultado da operação: R$ {resultado:F2}");
+                        valorCompraReais = null;
+                    }
+
                     ultimaAcao = "venda";
                     precoEntrada = null;
                     maiorPrecoDesdeEntrada = null;
                     return;
                 }
-
-                // TRAILING STOP
-                if (maiorPrecoDesdeEntrada == null || precoAtual > maiorPrecoDesdeEntrada.Value)
-                    maiorPrecoDesdeEntrada = precoAtual;
-
-                var quedaDesdeTopo = ((precoAtual - maiorPrecoDesdeEntrada.Value) / maiorPrecoDesdeEntrada.Value) * 100;
 
                 if (quedaDesdeTopo <= -trailingStopPercentual && btcBalance > 0.0001m)
                 {
                     await BinanceApi.PlaceMarketSellOrder(apiKey, secretKey, btcBalance);
+                    var cotacaoDolar = await GetCotacaoDolarAsync();
+                    var valorVendaReais = btcBalance * precoAtual * cotacaoDolar;
                     Console.WriteLine($"🏃‍♂️ TRAILING STOP - Venda após queda de {Math.Abs(quedaDesdeTopo):F2}% desde o topo.");
-                    await TelegramApi.SendMessageAsync($"🏃‍♂️ TRAILING STOP - BTC vendido após queda de {Math.Abs(quedaDesdeTopo):F2}% desde o topo.");
+                    Console.WriteLine($"💸 Valor da venda em reais: R$ {valorVendaReais:F2}");
+                    await TelegramApi.SendMessageAsync($"🏃‍♂️ TRAILING STOP - BTC vendido após queda de {Math.Abs(quedaDesdeTopo):F2}% desde o topo.\n💸 Aproximadamente R$ {valorVendaReais:F2}");
+
+                    if (valorCompraReais.HasValue)
+                    {
+                        var resultado = valorVendaReais - valorCompraReais.Value;
+                        Console.WriteLine($"📊 Resultado da operação: R$ {resultado:F2}");
+                        await TelegramApi.SendMessageAsync($"📊 Resultado da operação: R$ {resultado:F2}");
+                        valorCompraReais = null;
+                    }
+
                     ultimaAcao = "venda";
                     precoEntrada = null;
                     maiorPrecoDesdeEntrada = null;
                     return;
                 }
+
+                // Ainda não atingiu alvo, mas vamos deixar o stop armado se necessário mais tarde
             }
 
             // Executa PriceAction e coleta candle mais recente
@@ -180,6 +252,9 @@ namespace Bot.Trader
             var high = decimal.Parse(candle[2].GetString()!, CultureInfo.InvariantCulture);
             var low = decimal.Parse(candle[3].GetString()!, CultureInfo.InvariantCulture);
             var close = decimal.Parse(candle[4].GetString()!, CultureInfo.InvariantCulture);
+
+            var candleRange = high - low;
+            AjustarParametrosPorContexto(candleRange);
 
             var body = Math.Abs(close - open);
             var upperShadow = high - Math.Max(open, close);
