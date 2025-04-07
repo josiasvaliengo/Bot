@@ -11,6 +11,28 @@ namespace Bot.Trader
         private static decimal stopLossPercentual = 1.0m; // Stop Loss de 1%
         private static decimal trailingStopPercentual = 0.8m; // Trailing Stop de 0.8%
         private static decimal? maiorPrecoDesdeEntrada = null;
+        private static decimal? valorCompraReais = null;
+        private static decimal? cotacaoDolarCache = null;
+        private static DateTime? ultimaAtualizacaoCotacao = null;
+        private static readonly TimeSpan intervaloCache = TimeSpan.FromMinutes(5);
+
+        public static async Task<decimal> GetCotacaoDolarAsync()
+        {
+            if (cotacaoDolarCache.HasValue && ultimaAtualizacaoCotacao.HasValue &&
+                DateTime.Now - ultimaAtualizacaoCotacao < intervaloCache)
+            {
+                return cotacaoDolarCache.Value;
+            }
+
+            using var client = new HttpClient();
+            var response = await client.GetStringAsync("https://economia.awesomeapi.com.br/json/last/USD-BRL");
+            var jsonDoc = JsonDocument.Parse(response);
+            var bid = jsonDoc.RootElement.GetProperty("USDBRL").GetProperty("bid").GetString();
+            cotacaoDolarCache = decimal.Parse(bid!, CultureInfo.InvariantCulture);
+            ultimaAtualizacaoCotacao = DateTime.Now;
+
+            return cotacaoDolarCache.Value;
+        }
 
         public static async Task TapeReading()
         {
@@ -177,9 +199,13 @@ namespace Bot.Trader
                 maiorPrecoDesdeEntrada = price;
                 var stepSize = 0.000001m;
                 var quantidade = Math.Floor((usdtBalance / price) / stepSize) * stepSize;
+                var valorCompra = quantidade * price;
+                var cotacaoDolar = await GetCotacaoDolarAsync();
+                valorCompraReais = valorCompra * cotacaoDolar;
+                Console.WriteLine($"💵 Valor aproximado da compra em reais: R$ {valorCompraReais:F2}");
                 await BinanceApi.PlaceMarketBuyOrder(apiKey, secretKey, quantidade);
                 Console.WriteLine("✅ COMPRA EXECUTADA");
-                await TelegramApi.SendMessageAsync($"✅ COMPRA EXECUTADA - Quantidade: {quantidade} BTC - Valor aproximado: {(quantidade * price):C2}");
+                await TelegramApi.SendMessageAsync($"✅ COMPRA EXECUTADA\nQuantidade: {quantidade} BTC\nValor aproximado: {(quantidade * price):C2}\n💵 Aproximadamente R$ {valorCompraReais:F2}");
                 ultimaAcao = "compra";
             }
             else if (pressaoVenda && marteloReversao && btcBalance > 0.0001m)
@@ -190,9 +216,20 @@ namespace Bot.Trader
                     return;
                 }
                 var sellPrice = await BinanceApi.GetBitcoinPriceAsync();
+                var cotacaoDolar = await GetCotacaoDolarAsync();
+                var valorVendaReais = btcBalance * sellPrice * cotacaoDolar;
                 await BinanceApi.PlaceMarketSellOrder(apiKey, secretKey, btcBalance);
                 Console.WriteLine("⚠️ VENDA EXECUTADA");
-                await TelegramApi.SendMessageAsync($"⚠️ VENDA EXECUTADA - Quantidade: {btcBalance} BTC - Valor aproximado: {(btcBalance * sellPrice):C2}");
+                Console.WriteLine($"💸 Valor aproximado da venda em reais: R$ {valorVendaReais:F2}");
+
+                if (valorCompraReais.HasValue)
+                {
+                    var resultado = valorVendaReais - valorCompraReais.Value;
+                    Console.WriteLine($"📊 Resultado da operação: R$ {resultado:F2}");
+                    await TelegramApi.SendMessageAsync($"📊 Resultado da operação: R$ {resultado:F2}");
+                    valorCompraReais = null;
+                }
+                await TelegramApi.SendMessageAsync($"⚠️ VENDA EXECUTADA\nQuantidade: {btcBalance} BTC\nValor aproximado: {(btcBalance * sellPrice):C2}\n💸 Aproximadamente R$ {valorVendaReais:F2}");
                 ultimaAcao = "venda";
                 precoEntrada = null;
                 maiorPrecoDesdeEntrada = null;
