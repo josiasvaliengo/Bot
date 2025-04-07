@@ -189,6 +189,18 @@ public static class BinanceApi
         throw new Exception("LOT_SIZE filter not found for BTCUSDT.");
     }
     
+    public static async Task<decimal> GetUsdToBrlExchangeRateAsync()
+    {
+        using var httpClient = new HttpClient();
+        var response = await httpClient.GetStringAsync("https://api.binance.com/api/v3/ticker/price?symbol=USDTBRL");
+
+        using var doc = JsonDocument.Parse(response);
+        var root = doc.RootElement;
+        var price = root.GetProperty("price").GetString();
+
+        return decimal.Parse(price!, System.Globalization.CultureInfo.InvariantCulture);
+    }
+
     public static string CreateHmacSignature(string message, string key)
     {
         var keyBytes = System.Text.Encoding.UTF8.GetBytes(key);

@@ -39,24 +39,6 @@ namespace Bot.Trader
             }
         }
 
-        public static async Task<decimal> GetCotacaoDolarAsync()
-        {
-            if (cotacaoDolarCache.HasValue && ultimaAtualizacaoCotacao.HasValue &&
-                DateTime.Now - ultimaAtualizacaoCotacao < intervaloCache)
-            {
-                return cotacaoDolarCache.Value;
-            }
-
-            using var client = new HttpClient();
-            var response = await client.GetStringAsync("https://economia.awesomeapi.com.br/json/last/USD-BRL");
-            var jsonDoc = JsonDocument.Parse(response);
-            var bid = jsonDoc.RootElement.GetProperty("USDBRL").GetProperty("bid").GetString();
-            cotacaoDolarCache = decimal.Parse(bid!, CultureInfo.InvariantCulture);
-            ultimaAtualizacaoCotacao = DateTime.Now;
-
-            return cotacaoDolarCache.Value;
-        }
-
         public static async Task TapeReading()
         {
             Console.WriteLine("Executando estratégia de Tape Reading...");
@@ -322,6 +304,24 @@ namespace Bot.Trader
             {
                 Console.WriteLine("📊 Nenhuma ação executada. Condições não atendidas.");
             }
+        }
+
+        public static async Task<decimal> GetCotacaoDolarAsync()
+        {
+            if (cotacaoDolarCache.HasValue && ultimaAtualizacaoCotacao.HasValue &&
+                DateTime.Now - ultimaAtualizacaoCotacao < intervaloCache)
+            {
+                return cotacaoDolarCache.Value;
+            }
+
+            using var client = new HttpClient();
+            var response = await client.GetStringAsync("https://economia.awesomeapi.com.br/json/last/USD-BRL");
+            var jsonDoc = JsonDocument.Parse(response);
+            var bid = jsonDoc.RootElement.GetProperty("USDBRL").GetProperty("bid").GetString();
+            cotacaoDolarCache = decimal.Parse(bid!, CultureInfo.InvariantCulture);
+            ultimaAtualizacaoCotacao = DateTime.Now;
+
+            return cotacaoDolarCache.Value;
         }
     }
 }
