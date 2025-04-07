@@ -6,6 +6,11 @@ namespace Bot.Trader
     public static class Strategies
     {
         private static string? ultimaAcao = null;
+        private static decimal? precoEntrada = null;
+        private static decimal lucroAlvoPercentual = 1.5m; // Alvo de 1.5%
+        private static decimal stopLossPercentual = 1.0m; // Stop Loss de 1%
+        private static decimal trailingStopPercentual = 0.8m; // Trailing Stop de 0.8%
+        private static decimal? maiorPrecoDesdeEntrada = null;
 
         public static async Task TapeReading()
         {
@@ -106,6 +111,43 @@ namespace Bot.Trader
             bool pressaoCompra = totalBid > totalAsk * 1.5m;
             bool pressaoVenda = totalAsk > totalBid * 1.5m;
 
+            // Verifica se o lucro alvo foi atingido
+            if (ultimaAcao == "compra" && precoEntrada.HasValue)
+            {
+                var precoAtual = await BinanceApi.GetBitcoinPriceAsync();
+
+                // STOP LOSS
+                var perdaPercentual = ((precoAtual - precoEntrada.Value) / precoEntrada.Value) * 100;
+
+                if (perdaPercentual <= -stopLossPercentual && btcBalance > 0.0001m)
+                {
+                    await BinanceApi.PlaceMarketSellOrder(apiKey, secretKey, btcBalance);
+                    Console.WriteLine($"🛑 STOP LOSS - Venda realizada com {perdaPercentual:F2}% de prejuízo.");
+                    await TelegramApi.SendMessageAsync($"🛑 STOP LOSS - BTC vendido com {perdaPercentual:F2}% de prejuízo.");
+                    ultimaAcao = "venda";
+                    precoEntrada = null;
+                    maiorPrecoDesdeEntrada = null;
+                    return;
+                }
+
+                // TRAILING STOP
+                if (maiorPrecoDesdeEntrada == null || precoAtual > maiorPrecoDesdeEntrada.Value)
+                    maiorPrecoDesdeEntrada = precoAtual;
+
+                var quedaDesdeTopo = ((precoAtual - maiorPrecoDesdeEntrada.Value) / maiorPrecoDesdeEntrada.Value) * 100;
+
+                if (quedaDesdeTopo <= -trailingStopPercentual && btcBalance > 0.0001m)
+                {
+                    await BinanceApi.PlaceMarketSellOrder(apiKey, secretKey, btcBalance);
+                    Console.WriteLine($"🏃‍♂️ TRAILING STOP - Venda após queda de {Math.Abs(quedaDesdeTopo):F2}% desde o topo.");
+                    await TelegramApi.SendMessageAsync($"🏃‍♂️ TRAILING STOP - BTC vendido após queda de {Math.Abs(quedaDesdeTopo):F2}% desde o topo.");
+                    ultimaAcao = "venda";
+                    precoEntrada = null;
+                    maiorPrecoDesdeEntrada = null;
+                    return;
+                }
+            }
+
             // Executa PriceAction e coleta candle mais recente
             using var client = new HttpClient();
             var response = await client.GetStringAsync("https://api.binance.com/api/v3/klines?symbol=BTCUSDT&interval=1m&limit=1");
@@ -131,11 +173,13 @@ namespace Bot.Trader
                     return;
                 }
                 var price = await BinanceApi.GetBitcoinPriceAsync();
+                precoEntrada = price;
+                maiorPrecoDesdeEntrada = price;
                 var stepSize = 0.000001m;
                 var quantidade = Math.Floor((usdtBalance / price) / stepSize) * stepSize;
-                var result = await BinanceApi.PlaceMarketBuyOrder(apiKey, secretKey, quantidade);
+                await BinanceApi.PlaceMarketBuyOrder(apiKey, secretKey, quantidade);
                 Console.WriteLine("✅ COMPRA EXECUTADA");
-                await TelegramApi.SendMessageAsync($"✅ COMPRA EXECUTADA: {result}");
+                await TelegramApi.SendMessageAsync($"✅ COMPRA EXECUTADA - Quantidade: {quantidade} BTC - Valor aproximado: {(quantidade * price):C2}");
                 ultimaAcao = "compra";
             }
             else if (pressaoVenda && marteloReversao && btcBalance > 0.0001m)
@@ -145,10 +189,13 @@ namespace Bot.Trader
                     Console.WriteLine("🚫 Venda ignorada (já executada anteriormente).");
                     return;
                 }
-                var result = await BinanceApi.PlaceMarketSellOrder(apiKey, secretKey, btcBalance);
+                var sellPrice = await BinanceApi.GetBitcoinPriceAsync();
+                await BinanceApi.PlaceMarketSellOrder(apiKey, secretKey, btcBalance);
                 Console.WriteLine("⚠️ VENDA EXECUTADA");
-                await TelegramApi.SendMessageAsync($"⚠️ VENDA EXECUTADA: {result}");
+                await TelegramApi.SendMessageAsync($"⚠️ VENDA EXECUTADA - Quantidade: {btcBalance} BTC - Valor aproximado: {(btcBalance * sellPrice):C2}");
                 ultimaAcao = "venda";
+                precoEntrada = null;
+                maiorPrecoDesdeEntrada = null;
             }
             else
             {
