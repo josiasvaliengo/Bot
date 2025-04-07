@@ -15,6 +15,7 @@ namespace Bot.Trader
         private static decimal? cotacaoDolarCache = null;
         private static DateTime? ultimaAtualizacaoCotacao = null;
         private static readonly TimeSpan intervaloCache = TimeSpan.FromMinutes(5);
+        private static decimal taxaBinancePercentual = 0.1m; // 0.1% por operação (ajuste conforme necessário)
 
         private static void AjustarParametrosPorContexto(decimal candleRange)
         {
@@ -173,7 +174,9 @@ namespace Bot.Trader
 
                     if (valorCompraReais.HasValue)
                     {
-                        var resultado = valorVendaReais - valorCompraReais.Value;
+                        var taxaCompra = valorCompraReais.Value * (taxaBinancePercentual / 100);
+                        var taxaVenda = valorVendaReais * (taxaBinancePercentual / 100);
+                        var resultado = valorVendaReais - valorCompraReais.Value - taxaCompra - taxaVenda;
                         Console.WriteLine($"📊 Resultado da operação: R$ {resultado:F2}");
                         await TelegramApi.SendMessageAsync($"📊 Resultado da operação: R$ {resultado:F2}");
                         valorCompraReais = null;
@@ -204,7 +207,9 @@ namespace Bot.Trader
 
                     if (valorCompraReais.HasValue)
                     {
-                        var resultado = valorVendaReais - valorCompraReais.Value;
+                        var taxaCompra = valorCompraReais.Value * (taxaBinancePercentual / 100);
+                        var taxaVenda = valorVendaReais * (taxaBinancePercentual / 100);
+                        var resultado = valorVendaReais - valorCompraReais.Value - taxaCompra - taxaVenda;
                         Console.WriteLine($"📊 Resultado da operação: R$ {resultado:F2}");
                         await TelegramApi.SendMessageAsync($"📊 Resultado da operação: R$ {resultado:F2}");
                         valorCompraReais = null;
@@ -227,7 +232,9 @@ namespace Bot.Trader
 
                     if (valorCompraReais.HasValue)
                     {
-                        var resultado = valorVendaReais - valorCompraReais.Value;
+                        var taxaCompra = valorCompraReais.Value * (taxaBinancePercentual / 100);
+                        var taxaVenda = valorVendaReais * (taxaBinancePercentual / 100);
+                        var resultado = valorVendaReais - valorCompraReais.Value - taxaCompra - taxaVenda;
                         Console.WriteLine($"📊 Resultado da operação: R$ {resultado:F2}");
                         await TelegramApi.SendMessageAsync($"📊 Resultado da operação: R$ {resultado:F2}");
                         valorCompraReais = null;
@@ -299,7 +306,9 @@ namespace Bot.Trader
 
                 if (valorCompraReais.HasValue)
                 {
-                    var resultado = valorVendaReais - valorCompraReais.Value;
+                    var taxaCompra = valorCompraReais.Value * (taxaBinancePercentual / 100);
+                    var taxaVenda = valorVendaReais * (taxaBinancePercentual / 100);
+                    var resultado = valorVendaReais - valorCompraReais.Value - taxaCompra - taxaVenda;
                     Console.WriteLine($"📊 Resultado da operação: R$ {resultado:F2}");
                     await TelegramApi.SendMessageAsync($"📊 Resultado da operação: R$ {resultado:F2}");
                     valorCompraReais = null;

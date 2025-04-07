@@ -19,7 +19,7 @@ class Program
         while (true)
         {
             decimal price = await BinanceApi.GetBitcoinPriceAsync();
-            Console.WriteLine($"Bitcoin price: {price.ToString("C2", new System.Globalization.CultureInfo("pt-BR"))} (BRL)");
+            Console.WriteLine($"Bitcoin price: {price.ToString("C2", new System.Globalization.CultureInfo("en-US"))} (USD)");
             decimal btcBalance = await BinanceApi.GetBtcBalanceAsync(apiKey, secretKey);
             Console.WriteLine($"Binance BTC Balance: {btcBalance.ToString("F6", System.Globalization.CultureInfo.InvariantCulture)} BTC");
             decimal usdtBalance = await BinanceApi.GetUsdtBalanceAsync(apiKey, secretKey);
